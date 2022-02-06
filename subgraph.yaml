@@ -1,0 +1,23 @@
+specVersion: 0.0.1
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: BaseV1Factory
+    network: fantom
+    source:
+      address: "0x117F6F61e797E411Ea92F0ea1555c397Ecf17939"
+      abi: BaseV1Factory
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.5
+      language: wasm/assemblyscript
+      entities:
+        - PairCreated
+      abis:
+        - name: BaseV1Factory
+          file: ./abis/BaseV1Factory.json
+      eventHandlers:
+        - event: PairCreated(indexed address,indexed address,bool,address,uint256)
+          handler: handlePairCreated
+      file: ./src/mapping.ts
