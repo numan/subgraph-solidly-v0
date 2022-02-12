@@ -9,7 +9,7 @@ import { BaseV1Factory as FactoryContract } from '../../generated/templates/Pair
 import { Token } from '../../generated/schema';
 
 
-export const FACTORY_ADDRESS = '0x117F6F61e797E411Ea92F0ea1555c397Ecf17939';
+export const FACTORY_ADDRESS = '0x3faab499b519fdc5819e3d7ed0c26111904cbc28';
 export const ADDRESS_ZERO = '0x0000000000000000000000000000000000000000';
 
 export let ZERO_BD = BigDecimal.fromString('0');
