@@ -20,16 +20,16 @@ import {
   
     // Get all tokens with a static definition
     static getStaticDefinitions(): Array<TokenDefinition> {
-      let staticDefinitions = new Array<TokenDefinition>(6)
+      let staticDefinitions = new Array<TokenDefinition>()
   
-      // Add wFTM
-      let tokenWFTM = new TokenDefinition(
-        Address.fromString('0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83'),
-        'wFTM',
-        'wFTM',
-        BigInt.fromI32(18)
-      )
-      staticDefinitions.push(tokenWFTM)
+      // // Add wFTM
+      // let tokenWFTM = new TokenDefinition(
+      //   Address.fromString('0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83'),
+      //   'wFTM',
+      //   'wFTM',
+      //   BigInt.fromI32(18)
+      // )
+      // staticDefinitions.push(tokenWFTM)
   
       return staticDefinitions
     }

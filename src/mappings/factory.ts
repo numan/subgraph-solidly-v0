@@ -8,12 +8,13 @@ import {
   fetchTokenTotalSupply,
   FACTORY_ADDRESS,
   ZERO_BD,
-  ZERO_BI
+  ZERO_BI,
 } from './helpers';
 import { Address, log } from '@graphprotocol/graph-ts';
 
 export function handlePairCreated(event: PairCreated): void {
   let factory = SolidlyFactory.load(FACTORY_ADDRESS);
+
   if (factory == null) {
     factory = new SolidlyFactory(FACTORY_ADDRESS);
     factory.pairCount = 0;
@@ -42,7 +43,7 @@ export function handlePairCreated(event: PairCreated): void {
     return;
   }
 
-  let pair = new Pair(event.params.pair.toHexString()) as Pair;
+  let pair = new Pair(event.params.pair.toHexString());
   pair.token0 = token0.id;
   pair.token1 = token1.id;
   pair.liquidityProviderCount = ZERO_BI;
@@ -63,7 +64,7 @@ export function handlePairCreated(event: PairCreated): void {
   pair.token1Price = ZERO_BD;
 
   // create the tracked contract based on the template
-  PairTemplate.create(event.params.pair);
+  PairTemplate.create(event.params.pair)
 
   // save updated values
   token0.save();

@@ -6,9 +6,9 @@ dataSources:
     name: BaseV1Factory
     network: fantom
     source:
-      address: "0x117F6F61e797E411Ea92F0ea1555c397Ecf17939"
+      address: "0x3faab499b519fdc5819e3d7ed0c26111904cbc28"
       abi: BaseV1Factory
-      startBlock: 29659118
+      startBlock: 30511466
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.6

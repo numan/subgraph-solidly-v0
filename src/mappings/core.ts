@@ -1,4 +1,4 @@
-import { Address, BigDecimal, BigInt, ethereum, store, log } from '@graphprotocol/graph-ts';
+import { Address, BigDecimal, BigInt, ethereum, store, log, Bytes } from '@graphprotocol/graph-ts';
 
 import { Transfer } from '../../generated/templates/Pair/Pair';
 import { Pair as PairContract, Mint, Burn, Swap, Sync } from '../../generated/templates/Pair/Pair';
@@ -15,7 +15,7 @@ import {
   Burn as BurnEvent,
   Swap as SwapEvent,
 } from '../../generated/schema';
-import { ADDRESS_ZERO, BI_18, convertTokenToDecimal, FACTORY_ADDRESS, getDerivedFTM, ONE_BI, ZERO_BD, ZERO_BI } from './helpers';
+import { ADDRESS_ZERO, BI_18, convertTokenToDecimal, FACTORY_ADDRESS, getDerivedFTM, ONE_BI, ZERO_BD } from './helpers';
 import { findFtmPerToken, getFtmPriceInUSD, getTrackedLiquidityUSD, getTrackedVolumeUSD } from './pricing';
 
 export function handleTransfer(event: Transfer): void {
@@ -181,21 +181,26 @@ export function handleTransfer(event: Transfer): void {
 
   if (from.toHexString() != ADDRESS_ZERO && from.toHexString() != pair.id) {
     let fromUserLiquidityPosition = createLiquidityPosition(event.address, from);
-    fromUserLiquidityPosition.liquidityTokenBalance = convertTokenToDecimal(pairContract.balanceOf(from), BI_18);
-    fromUserLiquidityPosition.save();
-    createLiquiditySnapshot(fromUserLiquidityPosition, event);
+    if (fromUserLiquidityPosition !== null) {
+      fromUserLiquidityPosition.liquidityTokenBalance = convertTokenToDecimal(pairContract.balanceOf(from), BI_18);
+      fromUserLiquidityPosition.save();
+      createLiquiditySnapshot(fromUserLiquidityPosition, event);
+    }
   }
 
   if (event.params.to.toHexString() != ADDRESS_ZERO && to.toHexString() != pair.id) {
     let toUserLiquidityPosition = createLiquidityPosition(event.address, to);
-    toUserLiquidityPosition.liquidityTokenBalance = convertTokenToDecimal(pairContract.balanceOf(to), BI_18);
-    toUserLiquidityPosition.save();
-    createLiquiditySnapshot(toUserLiquidityPosition, event);
+    if (toUserLiquidityPosition !== null) {
+      toUserLiquidityPosition.liquidityTokenBalance = convertTokenToDecimal(pairContract.balanceOf(to), BI_18);
+      toUserLiquidityPosition.save();
+      createLiquiditySnapshot(toUserLiquidityPosition, event);
+    }
   }
 }
 
 export function handleSync(event: Sync): void {
   const pair = Pair.load(event.address.toHex());
+
   if (pair == null) {
     log.debug('debug pair not found', []);
     return;
@@ -276,11 +281,15 @@ export function handleSync(event: Sync): void {
   token0.totalLiquidity = token0.totalLiquidity.plus(pair.reserve0);
   token1.totalLiquidity = token1.totalLiquidity.plus(pair.reserve1);
 
+  log.debug('SYNC ALMOST COMPLETE', []);
+
   // save entities
   pair.save();
   solidly.save();
   token0.save();
   token1.save();
+
+  log.debug('SYNC COMPLETE', []);
 }
 
 export function handleMint(event: Mint): void {
@@ -344,16 +353,19 @@ export function handleMint(event: Mint): void {
   pair.save();
   solidly.save();
 
-  mint.sender = event.params.sender
-  mint.amount0 = token0Amount as BigDecimal
-  mint.amount1 = token1Amount as BigDecimal
-  mint.logIndex = event.logIndex
-  mint.amountUSD = amountTotalUSD as BigDecimal
-  mint.save()
+  mint.sender = event.params.sender;
+  mint.amount0 = token0Amount as BigDecimal;
+  mint.amount1 = token1Amount as BigDecimal;
+  mint.logIndex = event.logIndex;
+  mint.amountUSD = amountTotalUSD as BigDecimal;
+  mint.save();
 
   // update the LP position
-  let liquidityPosition = createLiquidityPosition(event.address, mint.to as Address);
-  createLiquiditySnapshot(liquidityPosition, event);
+  let liquidityPosition = createLiquidityPosition(event.address, Address.fromString(mint.to.toHexString()));
+
+  if (liquidityPosition !== null) {
+    createLiquiditySnapshot(liquidityPosition, event);
+  }
 }
 
 export function handleBurn(event: Burn): void {
@@ -432,8 +444,14 @@ export function handleBurn(event: Burn): void {
   burn.save();
 
   // update the LP position
-  const liquidityPosition = createLiquidityPosition(event.address, burn.sender as Address);
-  createLiquiditySnapshot(liquidityPosition, event);
+  if (burn.sender !== null) {
+    // Need to do explicit conversion to satisfy complier
+    const sender = burn.sender as Bytes;
+    const liquidityPosition = createLiquidityPosition(event.address, Address.fromString(sender.toHexString()));
+    if (liquidityPosition !== null) {
+      createLiquiditySnapshot(liquidityPosition, event);
+    }
+  }
 }
 
 export function handleSwap(event: Swap): void {
@@ -564,7 +582,6 @@ export function handleSwap(event: Swap): void {
   swaps.push(swap.id);
   transaction.swaps = swaps;
   transaction.save();
-
 }
 
 function getOrCreateUser(address: Address): User {
@@ -577,21 +594,24 @@ function getOrCreateUser(address: Address): User {
   return user;
 }
 
-function createLiquidityPosition(exchange: Address, user: Address): LiquidityPosition {
+function createLiquidityPosition(exchange: Address, user: Address): LiquidityPosition | null {
   let id = exchange.toHexString().concat('-').concat(user.toHexString());
   let liquidityTokenBalance = LiquidityPosition.load(id);
+
   if (liquidityTokenBalance === null) {
     let pair = Pair.load(exchange.toHexString());
-    pair!.liquidityProviderCount = pair!.liquidityProviderCount.plus(ONE_BI);
-    liquidityTokenBalance = new LiquidityPosition(id);
-    liquidityTokenBalance.liquidityTokenBalance = ZERO_BD;
-    liquidityTokenBalance.pair = exchange.toHexString();
-    liquidityTokenBalance.user = user.toHexString();
-    liquidityTokenBalance.save();
-    pair!.save();
+    if (pair !== null) {
+      pair.liquidityProviderCount = pair.liquidityProviderCount.plus(ONE_BI);
+      liquidityTokenBalance = new LiquidityPosition(id);
+      liquidityTokenBalance.liquidityTokenBalance = ZERO_BD;
+      liquidityTokenBalance.pair = exchange.toHexString();
+      liquidityTokenBalance.user = user.toHexString();
+      liquidityTokenBalance.save();
+      pair.save();
+    }
   }
   if (liquidityTokenBalance === null) log.error('LiquidityTokenBalance is null', [id]);
-  return liquidityTokenBalance as LiquidityPosition;
+  return liquidityTokenBalance;
 }
 
 function createLiquiditySnapshot(position: LiquidityPosition, event: ethereum.Event): void {
@@ -603,7 +623,6 @@ function createLiquiditySnapshot(position: LiquidityPosition, event: ethereum.Ev
     log.error('Bundle is null', []);
     return;
   }
-
 
   if (pair == null) {
     log.debug('debug pair not found', []);
