@@ -1,6 +1,6 @@
 import { BigDecimal, Address, BigInt } from '@graphprotocol/graph-ts';
 import { Token, Pair, Bundle } from '../../generated/schema';
-import { ADDRESS_ZERO, factoryContract, ONE_BD, UNTRACKED_PAIRS, ZERO_BD } from './helpers';
+import { ADDRESS_ZERO, factoryContract, getDerivedFTM, ONE_BD, UNTRACKED_PAIRS, ZERO_BD } from './helpers';
 
 const WFTM_ADDRESS = '0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83';
 // TODO: Need to fill these our when pairs are created. Currently using from spookyswap
@@ -119,11 +119,8 @@ export function getTrackedVolumeUSD(
   const bundle = Bundle.load('1');
 
   // get new amounts of USD and FTM for tracking
-  const token0DerivedFTM = token0.derivedFTM || ZERO_BD;
-  const token1DerivedFTM = token1.derivedFTM || ZERO_BD;
-
-  const price0 = token0DerivedFTM.times(bundle!.ftmPrice);
-  const price1 = token1DerivedFTM.times(bundle!.ftmPrice);
+  const price0 = getDerivedFTM(token0).times(bundle!.ftmPrice);
+  const price1 = getDerivedFTM(token1).times(bundle!.ftmPrice);
 
   // dont count tracked volume on these pairs - usually rebass tokens
   if (UNTRACKED_PAIRS.includes(pair.id)) {
@@ -182,13 +179,13 @@ export function getTrackedLiquidityUSD(
   tokenAmount1: BigDecimal,
   token1: Token
 ): BigDecimal {
-  let bundle = Bundle.load('1');
+  const bundle = Bundle.load('1');
   if (bundle == null) {
     return ZERO_BD;
   }
 
-  let price0 = token0.derivedFTM?.times(bundle.ftmPrice);
-  let price1 = token1.derivedFTM?.times(bundle.ftmPrice);
+  const price0 = getDerivedFTM(token0).times(bundle.ftmPrice);
+  const price1 = getDerivedFTM(token1).times(bundle.ftmPrice);
 
   // both are whitelist tokens, take average of both amounts
   if (WHITELIST.includes(token0.id) && WHITELIST.includes(token1.id) && price0 && price1) {

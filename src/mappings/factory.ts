@@ -12,7 +12,7 @@ import {
 } from './helpers';
 import { Address, log } from '@graphprotocol/graph-ts';
 
-export function handlePairCreated(event: PairCreated) {
+export function handlePairCreated(event: PairCreated): void {
   let factory = SolidlyFactory.load(FACTORY_ADDRESS);
   if (factory == null) {
     factory = new SolidlyFactory(FACTORY_ADDRESS);
@@ -37,7 +37,7 @@ export function handlePairCreated(event: PairCreated) {
   const token0 = getOrCreateToken(event.params.token0);
   const token1 = getOrCreateToken(event.params.token1);
 
-  if (token0 == null || token1 == null) {
+  if (token0 === null || token1 === null) {
     log.debug('debug could not successfully get one of the tokens', []);
     return;
   }
@@ -72,7 +72,7 @@ export function handlePairCreated(event: PairCreated) {
   factory.save();
 }
 
-function getOrCreateToken(tokenAddress: Address) {
+function getOrCreateToken(tokenAddress: Address): Token | null {
   let token = Token.load(tokenAddress.toHexString());
   const tokenAddressHex = tokenAddress.toHexString();
 
@@ -87,7 +87,7 @@ function getOrCreateToken(tokenAddress: Address) {
     // bail if we couldn't figure out the decimals
     if (decimals === null) {
       log.debug('debug the decimal on token 0 was null', []);
-      return;
+      return null;
     }
 
     token.decimals = decimals;

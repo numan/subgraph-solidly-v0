@@ -2,15 +2,16 @@ specVersion: 0.0.4
 schema:
   file: schema.graphql
 dataSources:
-  - kind: ethereum
+  - kind: ethereum/contract
     name: BaseV1Factory
     network: fantom
     source:
       address: "0x117F6F61e797E411Ea92F0ea1555c397Ecf17939"
       abi: BaseV1Factory
+      startBlock: 29659118
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.5
+      apiVersion: 0.0.6
       language: wasm/assemblyscript
       entities:
         - Pair
@@ -36,9 +37,9 @@ templates:
       abi: Pair
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.5
+      apiVersion: 0.0.6
       language: wasm/assemblyscript
-      file: BaseV1Factory/BaseV1Factory.wasm
+      file: templates/Pair/Pair.wasm
       entities:
         - Pair
         - Token

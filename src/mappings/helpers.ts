@@ -6,6 +6,7 @@ import { ERC20SymbolBytes } from '../../generated/BaseV1Factory/ERC20SymbolBytes
 import { ERC20NameBytes } from '../../generated/BaseV1Factory/ERC20NameBytes';
 
 import { BaseV1Factory as FactoryContract } from '../../generated/templates/Pair/BaseV1Factory'
+import { Token } from '../../generated/schema';
 
 
 export const FACTORY_ADDRESS = '0x117F6F61e797E411Ea92F0ea1555c397Ecf17939';
@@ -31,12 +32,14 @@ export function fetchTokenDecimals(tokenAddress: Address): BigInt {
 
   let contract = ERC20.bind(tokenAddress);
   // try types uint8 for decimals
-  let decimalValue = null;
+  let decimalValue: BigInt;
   let decimalResult = contract.try_decimals();
   if (!decimalResult.reverted) {
-    decimalValue = decimalResult.value;
+    decimalValue = BigInt.fromI32(decimalResult.value);
+  } else {
+    decimalValue = ZERO_BI;
   }
-  return BigInt.fromI32(decimalValue as i32);
+  return decimalValue
 }
 
 export function fetchTokenSymbol(tokenAddress: Address): string {
@@ -97,12 +100,14 @@ export function fetchTokenName(tokenAddress: Address): string {
 
 export function fetchTokenTotalSupply(tokenAddress: Address): BigInt {
   let contract = ERC20.bind(tokenAddress);
-  let totalSupplyValue = null;
+  let totalSupplyValue: BigInt;
   let totalSupplyResult = contract.try_totalSupply();
   if (!totalSupplyResult.reverted) {
-    totalSupplyValue = (totalSupplyResult as unknown) as i32;
+    totalSupplyValue = totalSupplyResult.value;
+  } else {
+    totalSupplyValue = ZERO_BI;
   }
-  return BigInt.fromI32(totalSupplyValue as i32);
+  return totalSupplyValue;
 }
 
 export function isNullEthValue(value: string): boolean {
@@ -122,4 +127,9 @@ export function convertTokenToDecimal(tokenAmount: BigInt, exchangeDecimals: Big
     return tokenAmount.toBigDecimal();
   }
   return tokenAmount.toBigDecimal().div(exponentToBigDecimal(exchangeDecimals));
+}
+
+export function getDerivedFTM(token: Token): BigDecimal {
+  const tokenDerivedFTM = (token.derivedFTM || ZERO_BD) as BigDecimal;
+  return tokenDerivedFTM;
 }

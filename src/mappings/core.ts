@@ -15,7 +15,7 @@ import {
   Burn as BurnEvent,
   Swap as SwapEvent,
 } from '../../generated/schema';
-import { ADDRESS_ZERO, BI_18, convertTokenToDecimal, FACTORY_ADDRESS, ONE_BI, ZERO_BD, ZERO_BI } from './helpers';
+import { ADDRESS_ZERO, BI_18, convertTokenToDecimal, FACTORY_ADDRESS, getDerivedFTM, ONE_BI, ZERO_BD, ZERO_BI } from './helpers';
 import { findFtmPerToken, getFtmPriceInUSD, getTrackedLiquidityUSD, getTrackedVolumeUSD } from './pricing';
 
 export function handleTransfer(event: Transfer): void {
@@ -113,8 +113,12 @@ export function handleTransfer(event: Transfer): void {
     let burns = transaction.burns;
     let burn: BurnEvent;
     if (burns.length > 0) {
-      let currentBurn = BurnEvent.load(burns[burns.length - 1]);
-      if (currentBurn?.needsComplete) {
+      const currentBurn = BurnEvent.load(burns[burns.length - 1]);
+      if (currentBurn === null) {
+        log.debug('debug currentBurn is null', []);
+        return;
+      }
+      if (currentBurn.needsComplete) {
         burn = currentBurn as BurnEvent;
       } else {
         burn = new BurnEvent(
@@ -289,8 +293,13 @@ export function handleMint(event: Mint): void {
     return;
   }
 
-  let mints = transaction.mints;
-  let mint = MintEvent.load(mints[mints.length - 1]);
+  const mints = transaction.mints;
+  const mint = MintEvent.load(mints[mints.length - 1]);
+
+  if (mint == null) {
+    log.debug('debug mint not found', []);
+    return;
+  }
 
   if (solidly == null) {
     log.debug('debug SolidlyFactory not found', []);
@@ -322,15 +331,11 @@ export function handleMint(event: Mint): void {
   pair.txCount = pair.txCount.plus(ONE_BI);
   solidly.txCount = solidly.txCount.plus(ONE_BI);
 
-  // get new amounts of USD and FTM for tracking
-  const token0DerivedFTM = token0.derivedFTM || ZERO_BD;
-  const token1DerivedFTM = token1.derivedFTM || ZERO_BD;
-
   const bundle = Bundle.load('1');
 
-  const amountTotalUSD = token1DerivedFTM
+  const amountTotalUSD = getDerivedFTM(token1)
     .times(token1Amount)
-    .plus(token0DerivedFTM.times(token0Amount))
+    .plus(getDerivedFTM(token0).times(token0Amount))
     .times(bundle!.ftmPrice);
 
   // save entities
@@ -339,8 +344,15 @@ export function handleMint(event: Mint): void {
   pair.save();
   solidly.save();
 
+  mint.sender = event.params.sender
+  mint.amount0 = token0Amount as BigDecimal
+  mint.amount1 = token1Amount as BigDecimal
+  mint.logIndex = event.logIndex
+  mint.amountUSD = amountTotalUSD as BigDecimal
+  mint.save()
+
   // update the LP position
-  let liquidityPosition = createLiquidityPosition(event.address, mint!.to);
+  let liquidityPosition = createLiquidityPosition(event.address, mint.to as Address);
   createLiquiditySnapshot(liquidityPosition, event);
 }
 
@@ -395,13 +407,9 @@ export function handleBurn(event: Burn): void {
   // get new amounts of USD and ETH for tracking
   const bundle = Bundle.load('1');
 
-  // get new amounts of USD and FTM for tracking
-  const token0DerivedFTM = token0.derivedFTM || ZERO_BD;
-  const token1DerivedFTM = token1.derivedFTM || ZERO_BD;
-
-  let amountTotalUSD = token1DerivedFTM
+  let amountTotalUSD = getDerivedFTM(token1)
     .times(token1Amount)
-    .plus(token0DerivedFTM.times(token0Amount))
+    .plus(getDerivedFTM(token0).times(token0Amount))
     .times(bundle!.ftmPrice);
 
   // update txn counts
@@ -456,14 +464,10 @@ export function handleSwap(event: Swap): void {
   // FTM/USD prices
   const bundle = Bundle.load('1');
 
-  // get new amounts of USD and FTM for tracking
-  const token0DerivedFTM = token0.derivedFTM || ZERO_BD;
-  const token1DerivedFTM = token1.derivedFTM || ZERO_BD;
-
   // get total amounts of derived USD and ETH for tracking
-  const derivedAmountFTM = token1DerivedFTM
+  const derivedAmountFTM = getDerivedFTM(token1)
     .times(amount1Total)
-    .plus(token0DerivedFTM.times(amount0Total))
+    .plus(getDerivedFTM(token0).times(amount0Total))
     .div(BigDecimal.fromString('2'));
   const derivedAmountUSD = derivedAmountFTM.times(bundle!.ftmPrice);
 
@@ -591,17 +595,23 @@ function createLiquidityPosition(exchange: Address, user: Address): LiquidityPos
 }
 
 function createLiquiditySnapshot(position: LiquidityPosition, event: ethereum.Event): void {
-  let timestamp = event.block.timestamp.toI32();
-  let bundle = Bundle.load('1');
-  let pair = Pair.load(position.pair);
+  const timestamp = event.block.timestamp.toI32();
+  const bundle = Bundle.load('1');
+  const pair = Pair.load(position.pair);
+
+  if (bundle === null) {
+    log.error('Bundle is null', []);
+    return;
+  }
+
 
   if (pair == null) {
     log.debug('debug pair not found', []);
     return;
   }
 
-  let token0 = Token.load(pair.token0);
-  let token1 = Token.load(pair.token1);
+  const token0 = Token.load(pair.token0);
+  const token1 = Token.load(pair.token1);
 
   if (token0 === null || token1 === null) {
     log.error('token0 or token1 is null', [pair.token0, pair.token1]);
@@ -616,11 +626,12 @@ function createLiquiditySnapshot(position: LiquidityPosition, event: ethereum.Ev
   snapshot.user = position.user;
   snapshot.pair = position.pair;
 
-  if (token0.derivedFTM != undefined) {
-    snapshot.token0PriceUSD = token0.derivedFTM.times(bundle!.ftmPrice);
+  if (token0.derivedFTM !== null) {
+    snapshot.token0PriceUSD = getDerivedFTM(token0).times(bundle.ftmPrice);
   }
-  if (token1.derivedFTM != undefined) {
-    snapshot.token1PriceUSD = token1.derivedFTM.times(bundle!.ftmPrice);
+
+  if (token1.derivedFTM !== null) {
+    snapshot.token1PriceUSD = getDerivedFTM(token1).times(bundle.ftmPrice);
   }
 
   snapshot.reserve0 = pair.reserve0;
